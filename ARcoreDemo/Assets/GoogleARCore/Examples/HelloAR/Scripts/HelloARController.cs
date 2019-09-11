@@ -74,6 +74,13 @@ namespace GoogleARCore.Examples.HelloAR
         private bool m_IsQuitting = false;
 
         /// <summary>
+        /// 
+        /// </summary>
+        private GameObject CreateCharacter = null;
+
+        private bool isShoot = false;
+
+        /// <summary>
         /// The Unity Awake() method.
         /// </summary>
         public void Awake()
@@ -110,54 +117,92 @@ namespace GoogleARCore.Examples.HelloAR
 
             if (Frame.Raycast(touch.position.x, touch.position.y, raycastFilter, out hit))
             {
-                // Use hit pose and camera pose to check if hittest is from the
-                // back of the plane, if it is, no need to create the anchor.
-                if ((hit.Trackable is DetectedPlane) &&
-                    Vector3.Dot(FirstPersonCamera.transform.position - hit.Pose.position,
-                        hit.Pose.rotation * Vector3.up) < 0)
-                {
-                    Debug.Log("Hit at back of the current DetectedPlane");
-                }
+                //  Choose create type.
+                if (!isShoot)
+                    InstantiateCharacter(hit);
                 else
+                    Shooting(hit);
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hit"></param>
+        private void InstantiateCharacter(TrackableHit hit)
+        {
+            // Use hit pose and camera pose to check if hittest is from the
+            // back of the plane, if it is, no need to create the anchor.
+            if ((hit.Trackable is DetectedPlane) &&
+                Vector3.Dot(FirstPersonCamera.transform.position - hit.Pose.position,
+                    hit.Pose.rotation * Vector3.up) < 0)
+            {
+                Debug.Log("Hit at back of the current DetectedPlane");
+            }
+            else
+            {
+                // Choose the Andy model for the Trackable that got hit.
+                GameObject prefab;
+                if (hit.Trackable is FeaturePoint)
                 {
-                    // Choose the Andy model for the Trackable that got hit.
-                    GameObject prefab;
-                    if (hit.Trackable is FeaturePoint)
+                    prefab = AndyPointPrefab;
+                }
+                else if (hit.Trackable is DetectedPlane)
+                {
+                    DetectedPlane detectedPlane = hit.Trackable as DetectedPlane;
+                    if (detectedPlane.PlaneType == DetectedPlaneType.Vertical)
                     {
-                        prefab = AndyPointPrefab;
-                    }
-                    else if (hit.Trackable is DetectedPlane)
-                    {
-                        DetectedPlane detectedPlane = hit.Trackable as DetectedPlane;
-                        if (detectedPlane.PlaneType == DetectedPlaneType.Vertical)
-                        {
-                            prefab = AndyVerticalPlanePrefab;
-                        }
-                        else
-                        {
-                            prefab = AndyHorizontalPlanePrefab;
-                        }
+                        prefab = AndyVerticalPlanePrefab;
                     }
                     else
                     {
                         prefab = AndyHorizontalPlanePrefab;
                     }
-
-                    // Instantiate Andy model at the hit pose.
-                    var andyObject = Instantiate(prefab, hit.Pose.position, hit.Pose.rotation);
-
-                    // Compensate for the hitPose rotation facing away from the raycast (i.e.
-                    // camera).
-                    andyObject.transform.Rotate(0, k_ModelRotation, 0, Space.Self);
-
-                    // Create an anchor to allow ARCore to track the hitpoint as understanding of
-                    // the physical world evolves.
-                    var anchor = hit.Trackable.CreateAnchor(hit.Pose);
-
-                    // Make Andy model a child of the anchor.
-                    andyObject.transform.parent = anchor.transform;
                 }
+                else
+                {
+                    prefab = AndyHorizontalPlanePrefab;
+                }
+
+                if (CreateCharacter != null) Destroy(CreateCharacter);
+
+                // Instantiate Andy model at the hit pose.
+                var andyObject = Instantiate(prefab, hit.Pose.position, hit.Pose.rotation);
+
+                // Compensate for the hitPose rotation facing away from the raycast (i.e.
+                // camera).
+                andyObject.transform.Rotate(0, k_ModelRotation, 0, Space.Self);
+
+                // Create an anchor to allow ARCore to track the hitpoint as understanding of
+                // the physical world evolves.
+                var anchor = hit.Trackable.CreateAnchor(hit.Pose);
+
+                // Make Andy model a child of the anchor.
+                andyObject.transform.parent = anchor.transform;
+
+                CreateCharacter = andyObject;
             }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="hit"></param>
+        private void Shooting(TrackableHit hit)
+        {
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.transform.position = FirstPersonCamera.transform.InverseTransformPoint(0, 0, 0.5f);
+            //cube.transform.localScale = new Vector3(0.2f, 0.2f, 0.2f);
+            cube.AddComponent<Rigidbody>();
+            cube.GetComponent<Rigidbody>().AddForce(FirstPersonCamera.transform.TransformDirection(0, 1f, 2f), ForceMode.Impulse);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public void OnClickShootToggle()
+        {
+            isShoot = !isShoot;
         }
 
         /// <summary>
